@@ -1,0 +1,69 @@
+{
+    "Einkommen": {
+        "Gehalt": [],
+        "Rente": [],
+        "Steuern": [],
+        "Sonstiges": []
+    },
+    "Wohnen": {
+        "Miete": [],
+        "Strom/Wasser": [],
+        "Nebenkosten": [],
+        "Handwerker": [],
+        "Besitz": [],
+        "Hausratsversicherung": [],
+        "Sonstiges": []
+    },
+    "Mobilität": {
+        "Auto": {
+            "Kfz-Steuer": [],
+            "Versicherung": [],
+            "Benzin": [],
+            "Wartung/Reparatur": [],
+            "Sonstiges": []
+        },
+        "Mietwagen": [],
+        "Bahn": [],
+        "ÖPVN": [],
+        "Sonstiges": []
+    },
+    "Kommunikation": {
+        "Festnetz-Telefon/Internet": [],
+        "Handy": [],
+        "Internet-Services": [],
+        "GEZ": [],
+        "Sonstiges": []
+    },
+    "Konsum": {
+        "Unterhalt": {
+            "Supermarkt": [],
+            "Kantine": [],
+            "Ausgehen": []
+        },
+        "Kleidung": [],
+        "Shopping": [],
+        "Abonnements/Mitgliedschaften": [],
+        "Urlaub": [],
+        "Sonstiges": []
+    },
+    "Gesundheit": {
+        "Arztrechnungen": [],
+        "Apotheke": [],
+        "Versicherung": [],
+        "Vers.-Erstattung": [],
+        "Sonstiges": []
+    },
+    "Investment": {
+        "Bank": {
+            "Gebühren": [],
+            "Transferzahlungen": []
+        },
+        "Lebensversicherung": [],
+        "Sonstiges": []
+    },
+    "Spenden": {
+        "absetzbar": [],
+        "nicht-absetzbar": []
+    },
+    "Bargeld": []
+}
