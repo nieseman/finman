@@ -4,22 +4,20 @@
         "Format for CSV files of:",
         "* Deutsche Kreditbank (DKB), Girokonto (current as of Oct 2019)"
     ],
-    "format": {
-        "encoding": "iso8859_15",
-        "separator": ";",
-        "currency": "EUR",
-        "currency_symbol": "€",
-        "date": "DD.MM.YYYY",
-        "header": {
-            "value_remove_points": true,
-            "value_replace_comma_with_point": true,
-            "num_lines": 7,
-            "line_with_column_names": 7
-        },
-        "data_lines": {
-            "value_remove_points": true,
-            "value_replace_comma_with_point": true
-        }
+    "encoding": "iso8859_15",
+    "separator": ";",
+    "currency": "€",
+    "date": "DD.MM.YYYY",
+    "fmt_header": {
+        "num_lines": 7,
+        "value_remove_points": true,
+        "value_replace_comma_with_point": true,
+        "num_lines": 7,
+        "line_with_column_names": 7
+    },
+    "fmt_data_lines": {
+        "value_remove_points": true,
+        "value_replace_comma_with_point": true
     },
     "descriptors_in_header": {
         "bank_account": [1, 2, 1],

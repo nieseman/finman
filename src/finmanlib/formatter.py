@@ -6,6 +6,7 @@ from typing import Optional, Union, Tuple, List, Generator
 
 CSV_SEPARATOR = ";"
 
+cat_sep = ' ▶ '
 
 class Formatter:
     """

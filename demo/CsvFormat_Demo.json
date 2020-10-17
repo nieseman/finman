@@ -1,25 +1,15 @@
 {
-    "name": "DKB-Giro1",
-    "comments": [
-        "Format for CSV files of:",
-        "* Deutsche Kreditbank (DKB), Girokonto (current as of Oct 2019)"
-    ],
-    "encoding": "utf_8",
-    "separator": ";",
-    "currency": "$",
-    "date": "MM/DD/YYYY",
-    "fmt_header": {
-        "num_lines": 7,
-        "value_remove_points": true,
-        "value_replace_comma_with_point": true,
-        "num_lines": 7,
-        "line_with_column_names": 7
+    "name": "Demo",
+    "comment": "Format for demo CSV files",
+    "currency": "USD",
+    "currency_sym": "$",
+    "currency_in_front": true,
+    "header_lines": 7,
+    "line_with_column_names": 7,
+    "fmt": {
+        "date": "MM/DD/YYYY"
     },
-    "fmt_data_lines": {
-        "value_remove_points": true,
-        "value_replace_comma_with_point": true
-    },
-    "descriptors_in_header": {
+    "values_in_header": {
         "bank_account": [1, 2, 1],
         "date_start": [3, 2],
         "date_end": [4, 2],

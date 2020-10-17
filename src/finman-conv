@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import logging as log
+import sys
+
+from finmanlib.csv import CsvFmt
+from finmanlib.datafile import JsonlFile
+
+
+
+def get_args():
+    parser = argparse.ArgumentParser(
+            description="Convert CSV files to a Finman JSONL file",
+            formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+            'file_csv_fmt',
+            metavar='CSV-Format',
+            help="CSV format file to use")
+    parser.add_argument(
+            'file_csv',
+            metavar='CSV',
+            help="CSV input file to convert")
+
+    return parser.parse_args()
+
+
+
+def main():
+    log.basicConfig(level = log.INFO, format = "%(message)s")
+    args = get_args()
+
+    # Read CSV format file, convert CSV and print JSONL.
+    csv_fmt = CsvFmt(json.load(open(args.file_csv_fmt)))
+    trns_set = csv_fmt.process_csv(args.file_csv)
+    jsonl_file = JsonlFile("")
+    jsonl_file.trns_sets = [trns_set]
+    jsonl_file._write(sys.stdout)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+
+    except ValueError as e:
+        log.error(f"Error: {e}")
+        raise
+        sys.exit(1)
