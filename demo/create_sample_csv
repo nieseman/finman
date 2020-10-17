@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+
+"""
+Script to create a few sample CSV files containing fictional bank transaction
+data, for playing around with Finman.
+"""
+
+from collections import namedtuple
+from datetime import date, timedelta
+from typing import Optional, List
+
+
+class Transaction:
+    """
+    A transaction in the CSV files.
+    """
+
+    def __init__(self, d: date, v: float, t: Optional[float], c: list):
+        self.date = d
+        self.value = v
+        self.total_before = t
+        self.columns = c
+
+
+class Params:
+    """
+    Parameters for creation of sample data.
+    """
+
+    # Time interval for creation of data.
+    date_start = date(1999, 7, 5)
+    date_end = date(2001, 5, 21)
+    month_step_of_csv_files = 3
+
+    # Constant information.
+    account = "DE981234567"
+    value_start = 2436.41
+
+    # Patterns for regular transactions.
+    Pattern = namedtuple('Pattern',
+            'month day interval value addresse subject remote_account details')
+
+    patterns = (
+        Pattern(1, 28, 1, -842.21, 'Landlord Mr. Berger',
+            'Rent $M/$Y by Clark Kent, your favorite renter',
+            'ES12345678912345', 'Random stuff'),
+        Pattern(1, 15, 1, +1376.42, 'Dr. Evil, Inc.',
+            'Income, employee 4733',
+            'US9924252425', 'Transfer 24-2642-3561-23'),
+        Pattern(5, 2, 6, -123.52, 'Awesome Insurance Inc.',
+            "'All-is-covered' insurance, Clark Kent",
+            'DE12111222987', 'Contract nmbr 777-888-232.ck45'),
+        Pattern(2, 7, 3, -63.85, 'Automobile Club',
+            'Membership fee $Y-$M, Clark Kent',
+            'UK44552267', 'Order 12.5432.43-b3'),
+    )
+
+
+def date_shift_months(d: date, months: int) -> date:
+    """
+    Shift a date by a given number of months.
+    """
+    m = d.month + months - 1
+    return date(d.year + m // 12, m % 12 + 1, d.day)
+
+
+def date_shift_days(d: date, days: int) -> date:
+    return d + timedelta(days = days)
+
+
+def replace_in_string(s: str, d: date) -> str:
+    """
+    Replace $M/$Y in given string with month/year.
+    """
+    return s.replace('$Y', str(d.year)).replace('$M', str(d.month))
+
+
+def get_value_string(f: float) -> str:
+    return "{:,.2f}".format(f)
+
+
+def get_all_transactions() -> List[Transaction]:
+    """
+    Create a list of date-transaction pairs within the interval
+    [date_start, date_end[ based on the given pattern of regular transactions.
+    """
+    trns = []
+    for pat in Params.patterns:
+        d = date(Params.date_start.year, pat.month, pat.day)
+        while d < Params.date_end:
+            columns = (
+                    "%02i/%02i/%04i" % (d.month, d.day, d.year),
+                    pat.addresse,
+                    replace_in_string(pat.subject, d),
+                    pat.remote_account,
+                    get_value_string(pat.value),
+                    replace_in_string(pat.details, d))
+            trns.append(Transaction(d, pat.value, None, columns))
+
+            d = date_shift_months(d, pat.interval)
+
+    return trns
+
+
+def print_file(fname: str, trns: list, date_start: date, date_end: date):
+    """
+    Print all given transactions to file fname.
+    """
+    # Determine totals at start and end of transactions list.
+    if trns:
+        value1 = trns[0].total_before
+        value2 = trns[-1].total_before + trns[-1].value
+    else:
+        value1 = None
+        value2 = None
+
+    # Construct file header.
+    d1, d2 = date_start, date_end
+    header = f""""Account:";"{Params.account} / Bank account";
+"From:";"{d1.month}/{d1.day}/{d1.year}";
+"To:";"{d2.month}/{d2.day}/{d2.year}";
+"Balance on {d1.month}/{d1.day}/{d1.year} morning:";"{get_value_string(value1)} $";
+"Balance on {d2.month}/{d2.day}/{d2.year} evening:";"{get_value_string(value2)} $";
+
+"Booking day";"Addressee";"Subject";"Account number";"Value ($)";"Details";
+"""
+    with open(fname, 'w') as fh:
+        fh.write(header)
+        for trn in trns:
+            fh.write(";".join(f'"{c}"' for c in trn.columns) + "\n")
+
+
+def main():
+    """
+    Loop over whole time interval, create a CSV file for each period.
+    """
+
+    # Construct list of all transactions.
+    trns_all = get_all_transactions() 
+    trns_all.sort(key = lambda trn: trn.date)
+    total = Params.value_start
+    for trn in trns_all:
+        trn.total_before = total
+        total += trn.value
+
+    # Loop over all time intervals of length Params.month_step_of_csv_files.
+    d = Params.date_start
+    while d < Params.date_end:
+        d_next = date_shift_months(d, Params.month_step_of_csv_files)
+        if d_next > Params.date_end:
+            d_next = Params.date_end
+
+        trns = [trn for trn in trns_all if d <= trn.date < d_next]
+        fname = "transactions_%04i-%02i-%02i.csv" % (d.year, d.month, d.day)
+        print_file(fname, trns, d, date_shift_days(d_next, -1))
+
+        d = d_next
+
+    print("Example CSV files created.")
+
+
+if __name__ == "__main__":
+    main()
