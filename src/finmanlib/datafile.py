@@ -43,7 +43,13 @@ import logging
 from typing import Set, List, Dict, Optional, Union
 
 
-COL_VALUE = 'value'
+# Field names.  TBD: rename "column" to "field" or "attribute"?
+COL_ID      = '_id'
+COL_IDX     = '_idx'
+COL_MOD     = '_is_modified'
+COL_DATE    = 'date'
+COL_VALUE   = 'value'
+COL_CAT_ALT = '_cat_alt'
 
 
 def plural(word: str, count: Union[int, Sequence]) -> str:
@@ -64,6 +70,8 @@ class Trn:
 
     _id             Unique ID during program run, set during loading of JSONL files.
     _idx            The index within the latest selection
+    _is_modified    Have the transaction's 'note' attributes been modified?
+    _cat_alt        Temporary alternative category name
     line_num_in_csv Line number in CSV file described in current block in JSONL.
     columns         Fields copied from CSV file (remain unchanged).
                     Field COL_VALUE is treated special (see selection.py).
@@ -76,6 +84,7 @@ class Trn:
         self._id                      = _id
         self._idx                     = None
         self._is_modified             = False
+        self._cat_alt                 = ""
         self.line_num_in_csv          = None
         self.columns: Dict[str, str]  = {}
         self.notes                    = {
@@ -117,7 +126,7 @@ class Trn:
 
 
     def get_all_field_names(self) -> Set[str]:
-        top_level_fields = {'_id', '_idx', 'line_num_in_csv'}
+        top_level_fields = {'_id', '_idx', '_is_modified', '_cat_alt', 'line_num_in_csv'}
         return top_level_fields.union(self.columns, self.notes)
 
 
@@ -131,6 +140,10 @@ class Trn:
             return self._id
         elif field == '_idx':
             return self._idx
+        elif field == '_is_modified':
+            return self._is_modified
+        elif field == '_cat_alt':
+            return self._cat_alt
         elif field == 'line_num_in_csv':
             return self.line_num_in_csv
         elif field in self.columns:
@@ -142,26 +155,36 @@ class Trn:
             return ""
 
 
+    def set_cat_alt(self, cat: str):
+        """
+        Set temporary alternative category of transaction.
+        """
+        self._cat_alt = cat
+
+
     def set_cat(self, cat: str, cat_auto: bool = False):
         """
         Set category of transaction.
 
         'cat_auto' indicates if category was set according to automatic rule.
         """
-        self.notes['cat'] = cat
-        self.notes['cat_auto'] = cat_auto
-        self._is_modified = True
+        if self.notes['cat'] != cat:
+            self.notes['cat'] = cat
+            self.notes['cat_auto'] = cat_auto
+            self._is_modified = True
 
 
     def clear_cat(self):
-        self.notes['cat'] = ""
-        self.notes['cat_auto'] = None
-        self._is_modified = True
+        if self.notes['cat'] != "":
+            self.notes['cat'] = ""
+            self.notes['cat_auto'] = None
+            self._is_modified = True
 
 
     def set_remark(self, remark=""):
-        self.notes['remark'] = remark
-        self._is_modified = True
+        if self.notes['remark'] != remark:
+            self.notes['remark'] = remark
+            self._is_modified = True
 
 
     def clear_modified(self):
@@ -267,7 +290,7 @@ class JsonlFile:
 
         # Clear modified flag.
         for trns_set in self.trns_sets:
-            for trn in trns_set:
+            for trn in trns_set.trns:
                 trn.clear_modified()
 
 
@@ -425,7 +448,7 @@ class FinmanData:
         if len(self.filenames) == 1:
             self.jsonl_files = [JsonlFile(self.filenames[0])]
         else:
-            self.jsonl_files = [JsonlFile(filename, trn_id_prefix=f"{idx}/")
+            self.jsonl_files = [JsonlFile(filename, trn_id_prefix=f"{idx}-")
                                 for idx, filename in enumerate(self.filenames, start=1)]
 
 
@@ -443,14 +466,7 @@ class FinmanData:
             jsonl_file.save()
 
 
-    def filter(self, filter_str="") -> 'Selection':
-        # This function is provided for convenience,
-        # at the cost of a circular module import.
-        from finmanlib.selection import Selection
-        return Selection(self, filter_str)
-
-
-    def _expand_fieldname(self, field) -> str:
+    def expand_fieldname(self, field) -> str:
         fields = set(f for f in self.known_field_names if f.startswith(field))
         if field in fields:
             return field

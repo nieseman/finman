@@ -8,19 +8,14 @@ transactions from a FinmanData object:
 """
 
 from collections import namedtuple
+import decimal
 import logging
 import os
 import sys
-from typing import List, Optional
+from typing import List, Optional, Tuple, Callable
 
-from finmanlib.datafile import FinmanData, Trn
-
-
-# Separator used in field_str and filter_str variables
-SEPARATOR = '|'
-
-# The value column with this name is treated special.
-COL_VALUE = 'value'
+from finmanlib.datafile import FinmanData, Trn, \
+    COL_ID, COL_IDX, COL_MOD, COL_DATE, COL_VALUE, COL_CAT_ALT 
 
 
 
@@ -28,17 +23,25 @@ class Selection:
     """
     A selection of transactions.
     """
+    SEPARATOR_FIELDS = '|'
 
-    def __init__(self, finman_data: FinmanData, filter_str=""):
-        trn_filter = TrnFilter(finman_data._expand_fieldname, filter_str)
+    def __init__(self, finman_data: FinmanData, filter_str="", trns=None):
+        self.finman_data = finman_data
 
-        self.trns = self._get_filtered_trns(finman_data, trn_filter)
-        self.expand_fieldname = finman_data._expand_fieldname
-        self.filter_str = filter_str
+        if trns is None:
+            # Determine filtered set of transactions from 'filter_str'.
+            trn_filter = TrnFilter(finman_data.expand_fieldname, filter_str)
+            self.trns = self._get_filtered_trns(finman_data, trn_filter)
+            self.filter_str = filter_str
 
-        # Enumerate filtered transactions.
-        for idx, trn in enumerate(self.trns, start=1):
-            trn._idx = str(idx)
+            # Enumerate filtered transactions.
+            for idx, trn in enumerate(self.trns, start=1):
+                trn._idx = str(idx)
+
+        else:
+            # Use set of transactions as provided by 'trn'.
+            self.trns = trns
+            self.filter_str = ""
 
 
     def __repr__(self):
@@ -52,7 +55,7 @@ class Selection:
         Those conditions have been stored in trn_filter.
 
         In each contained Trn object, their index in this selection is stored in
-        attribute '_idx'.
+        attribute '_idx' (COL_IDX).
         """
 
         # Determine filtered transactions.
@@ -65,11 +68,32 @@ class Selection:
 
         # TBD: sorting.
 
-
         return trns
 
 
-    def print(self,
+    def _get_names(self, fields_str: str) -> Tuple[List[str], List[str]]:
+        """ TBD """
+        FIXED_COLUMN_HEADINGS = {
+            COL_IDX: '#',
+            COL_MOD: 'mod',
+            COL_CAT_ALT: 'cat new'
+        }
+
+        field_names = []
+        column_headings = []
+        for field in fields_str.split(self.SEPARATOR_FIELDS):
+            field_name = self.finman_data.expand_fieldname(field.strip())
+            try:
+                column_heading = FIXED_COLUMN_HEADINGS[field_name]
+            except KeyError:
+                column_heading = field_name
+            field_names.append(field_name)
+            column_headings.append(column_heading)
+
+        return field_names, column_headings
+
+
+    def print_trns(self,
             fields_str: str,
             subset_str=None,
             index_col=False,
@@ -89,29 +113,37 @@ class Selection:
         csv_sep         Separator for CSV output (type: str)
         fh              File handle for output
         """
+
         # Preperations.
-        fields = [self.expand_fieldname(field.strip())
-                    for field in fields_str.split(SEPARATOR)]
-        column_headers = fields[:]
         if index_col:
-            fields = ["_idx"] + fields
-            column_headers = ["#"] + column_headers
+            fields_str = f"{COL_IDX}{self.SEPARATOR_FIELDS}{fields_str}"
+
+        field_names, column_headings = self._get_names(fields_str)
+
         if not print_csv:
             if max_width is not None and max_width < 0:
                 max_width = os.get_terminal_size().columns
-            fmt = ColumnFormatter(self.trns, fields, max_width)
+            fmt = ColumnFormatter(self.trns, field_names, column_headings, max_width)
 
         # Print header.
         if print_csv:
-            header = csv_sep.join(column_headers) + "\n"
+            header = csv_sep.join(column_headings) + "\n"
         else:
-            header = fmt.get_formatted_line(column_headers) + \
+            header = fmt.get_formatted_line(column_headings) + \
                      fmt.get_separator_line()
         fh.write(header)
 
         # Print data lines.
         for trn in self.get_subset(subset_str):
-            values = [trn.get_field(field) for field in fields]
+
+            # Determine column values. Special treatment of "modified"-flag.
+            values = []
+            for field_name in field_names:
+                value = trn.get_field(field_name)
+                if field_name == COL_MOD:
+                    value = "*" if value is True else ""
+                values.append(value)
+
             if print_csv:
                 line = csv_sep.join(values) + "\n"
             else:
@@ -121,7 +153,7 @@ class Selection:
         # Print footer.
         if not print_csv:
             footer = fmt.get_separator_line() + \
-                     fmt.get_formatted_line(column_headers)
+                     fmt.get_formatted_line(column_headings)
         fh.write(footer)
 
 
@@ -147,6 +179,7 @@ class Ranges:
     """
     Determine a list of range specifications from a specifier string.
     """
+    SEPARATOR_RANGE  = ','
 
     @classmethod
     def get(cls, subset_str: str, max_len: int) -> List[List]:
@@ -160,7 +193,8 @@ class Ranges:
         return cls.reduce_ranges(ranges)
 
 
-    def get_ranges(subset_str: str, max_len: int) -> List[List]:
+    @classmethod
+    def get_ranges(cls, subset_str: str, max_len: int) -> List[List]:
         """
         Get set of ranges from string.
 
@@ -168,7 +202,7 @@ class Ranges:
         '3,6-11,5-9,14-' => [[3,3], [6,11], [5,9], [14,max_len]]
         """
         ranges = []
-        for range_str in subset_str.split(','):
+        for range_str in subset_str.split(cls.SEPARATOR_RANGE):
             range_str = range_str.strip()
             if range_str == "":
                 continue    # Ignore empty range.
@@ -245,26 +279,32 @@ class ColumnFormatter:
 
     ColumnFormat = namedtuple('ColumnFormat', 'width left_aligned')
 
-    def __init__(self, trns: List[Trn], fields: List[str], max_width: Optional[int] = None):
+    def __init__(self,
+            trns: List[Trn],
+            field_names: List[str],
+            column_headings: List[str],
+            max_width: Optional[int] = None):
         self.max_width = max_width
-        self.col_fmts = self._get_formats(trns, fields)
+        self.col_fmts = self._get_formats(trns, field_names, column_headings)
 
 
     @classmethod
-    def _get_formats(cls, trns: List[Trn], fields: List[str]) -> List[ColumnFormat]:
+    def _get_formats(cls,
+            trns: List[Trn],
+            field_names: List[str],
+            column_headings: List[str]) -> List[ColumnFormat]:
         """
         Get format (width, alignment) for all columns.
         """
         col_fmts = []
         # TBD: Allow syntax for like 'date,descr:40,value'.
 
-        for field in fields:
-            max_len = max((len(trn.get_field(field)) for trn in trns), default=1)
-            if field != '_idx':
-                max_len = max(max_len, len(field))
-            left_aligned = not (field in (COL_VALUE, '_idx'))
+        for field_name, column_heading in zip(field_names, column_headings):
+            values = [column_heading] + [trn.get_field(field_name) for trn in trns]
+            lengths = [(1 if type(value) is bool else len(value)) for value in values]
+            left_aligned = not (field_name in (COL_VALUE, COL_IDX))
             col_fmts.append(cls.ColumnFormat(
-                        width=max_len,
+                        width=max(lengths),
                         left_aligned=left_aligned))
 
         return col_fmts
@@ -306,6 +346,7 @@ class TrnFilter:
     A filter which determines whether a given transaction matches certain
     conditions.
     """
+    SEPARATOR_COND   = '|'
 
     FilterCond = namedtuple('FilterCond', 'field op value')
 
@@ -314,45 +355,76 @@ class TrnFilter:
 
 
     @classmethod
-    def _get_filter_conds(cls, expand_fieldname, filter_str="") -> List[FilterCond]:
+    def _get_filter_conds(cls,
+            expand_fieldname: Callable[[str], str],
+            filter_str="") -> List[FilterCond]:
         """
         Get the filter conditions from given string.
         """
-        operators = ('<=', '>=', '<', '>', '=')
+        operators = ('<=', '>=', '<', '>', '=~', '=')
 
         filter_conds = []
-        for cond_str in filter_str.split(SEPARATOR):
+        for cond_str in filter_str.split(cls.SEPARATOR_COND):
             if cond_str == "":
                 continue    # Ignoring empty conditions.
 
             for op in operators:
+
+                # Split condition in field/operator/value.
                 p = cond_str.find(op)
-                if p >= 0:
-                    field, value = cond_str[:p], cond_str[p + len(op):]
-                    if field == '':
-                        logging.warning(f"No field in condition '{cond_str}'; ignoring.")
-                        break
-                    # TBD: unquote value?
-                    field = expand_fieldname(field)
+                if p < 0:
+                    # Not the correct operator.
+                    continue
+                field, value = cond_str[:p], cond_str[p + len(op):]
+                field = field.strip()
+                value = value.strip()
 
-                    if op == '=':
-                        # Operator '=' is understood
-                        # as 'exact-equal' for field COL_VALUE, but 
-                        # as 'contains' for other fields.
-                        if field != COL_VALUE:
-                            op = 'contains'
-                            value = value.lower()
-                    else:
-                        # The other operators (for value comparison) only make
-                        # sense for field COL_VALUE.
-                        if field != COL_VALUE:
-                            logging.warning(f"Operator '{op}' not valid for field '{field}'; ignoring.")
-                            break
-                        value = decimal.Decimal(value)
-
-                    # Valid condition; store it.
-                    filter_conds.append(cls.FilterCond(field, op, value))
+                # Check for empty fields.
+                if field == "":
+                    logging.warning(f"No field in condition '{cond_str}'; ignoring.")
                     break
+                if value == "":
+                    logging.warning(f"No value in condition '{cond_str}'; ignoring.")
+                    break
+
+                # Expand field name.
+                field_exp = expand_fieldname(field)
+                if field_exp == "":
+                    logging.warning(f"No expansion for field '{field}'; ignoring.")
+                    break
+                field = field_exp
+
+                # Unquote value.
+                if len(value) >= 2:
+                    if (value[0] == '"' and value[-1] == '"') or \
+                       (value[0] == "'" and value[-1] == "'"):
+                        value = value[1:-1]
+
+                # In case of "contains" operator: prepare for case-insensitive comparison.
+                if op == '=~':
+                    op = "contains"
+                    value = value.upper()
+
+                # The text operator 'contains' does not make much sense on numerical values...
+                if op == "contains":
+                    if field in (COL_ID, COL_IDX, COL_VALUE):
+                        logging.warning(f"Invalid condition: operator '{op}' and field '{field}'; ignoring.")
+                        break
+
+                # while the numeric operators do not make much sense on text values.
+                else:
+                    if field not in (COL_ID, COL_IDX, COL_DATE, COL_VALUE):
+                        logging.info(f"Unusual condition: operator '{op}' and field '{field}'.")
+
+                # Some fields do not contain text but numbers.
+                if field in (COL_ID, COL_IDX):
+                    value = int(value)
+                elif field == COL_VALUE:
+                    value = decimal.Decimal(value)
+
+                # Valid condition; store it.
+                filter_conds.append(cls.FilterCond(field, op, value))
+                break
 
             else:
                 logging.warning(f"No valid operator in condition '{cond_str}'; ignoring.")
@@ -370,7 +442,7 @@ class TrnFilter:
 
             if fc.op == 'contains':
                 # Search for sub-string.
-                value = trn.get_field(fc.field).lower()
+                value = trn.get_field(fc.field).upper()
                 if not (value.find(fc.value) >= 0):
                     return False
             else:

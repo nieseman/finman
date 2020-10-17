@@ -12,7 +12,7 @@ example-jsonl:
 	done
 
 example-finman:
-	./finman ../demo/transactions_????-??-??.jsonl
+	./finman  --cat ../data/Categories_Deutsch.json  ../demo/transactions_????-??-??.jsonl
 
 test:
 	./test_finman
