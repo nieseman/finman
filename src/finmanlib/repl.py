@@ -6,6 +6,7 @@ An interactive REPL (read-eval-print loop) for Finman.
 
 import code
 import readline
+import sys
 
 from finmanlib.categories import Categories
 from finmanlib.datafile import FinmanData
@@ -52,7 +53,11 @@ class FinmanREPL:
             self.categories = None
         else:
             self.categories = Categories(cats_file=args.cat)
-        self.finman_data = FinmanData(filenames=args.jsonl)
+        try:
+            self.finman_data = FinmanData(filenames=args.jsonl)
+        except Exception as e:
+            print(str(e))
+            sys.exit(1)
         self.filter_str = ""
         self.fields_str = self.DEFAULT_FIELDS
         self.selection = Selection(self.finman_data, filter_str="")
