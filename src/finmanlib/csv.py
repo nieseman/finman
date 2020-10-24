@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 
-import copy
-import decimal
+import datetime
 import hashlib
-import itertools
-import os
-from typing import List, Tuple, Dict, Iterator
+from typing import List, Tuple, Dict
 
 from finmanlib.datafile import Trn, TrnsSet, SourceFileInfo, SourceFileHeader
-
 
 
 
@@ -23,7 +19,6 @@ class CsvFmt:
     """
     Format description of one kind of CSV source file.
     """
-
 
     def __init__(self, d: Dict):
         # Default values.
@@ -126,6 +121,31 @@ class CsvFmt:
         return trn
 
 
+    def read_sourcefile(self, filename: str) -> Tuple[SourceFileInfo, List[str]]:
+        """
+        Obtain CSV file and SourceFile descriptor.
+        """
+        with open(filename, 'rb') as fh:
+            blob = fh.read()
+        lines = str(blob, encoding=self.encoding).split("\n")
+
+        n = datetime.datetime.now()
+        src = SourceFileInfo()
+        src.conversion_date = \
+                f"{n.year}-{n.month:>02}-{n.day:>02} " \
+                f"{n.hour:>02}:{n.minute:>02}:{n.second:>02}"
+        src.filename = filename
+        src.filesize = len(blob)
+        src.sha1 = hashlib.sha1(blob).hexdigest()
+        src.csv_fmt = self.name
+        src.currency = self.currency
+        src.columns = self.columns
+        src.num_lines = len(lines)
+        src.num_trns = 0
+
+        return src, lines
+
+
     def process_csv(self, filename: str) -> TrnsSet:
         """
         TBD
@@ -134,20 +154,21 @@ class CsvFmt:
             self.fmt_header = self.fmt
 
         # Obtain lines from CSV files.
-        lines = open(filename, 'r', encoding=self.encoding).readlines()
+        src, lines = self.read_sourcefile(filename)
         num = self.header_lines
         lines_header = lines[:num]
         lines_trns = lines[num:]
 
         # Create transaction set.
-
-        src = SourceFileInfo()
-        header = SourceFileHeader()
         col_map = self.column_mapping(lines_header)
         trns = [self.conv_trn(line_num_in_csv, line.strip(), col_map, self.fmt)
                     for line_num_in_csv, line in enumerate(lines_trns, start=num+1)]
+        src.num_trns = len(trns)
+        # TBD: populate src.header_values
 
-        # TBD
+        header = SourceFileHeader()
+        # TBD: populate SourceFileHeader
+
         trns_set = TrnsSet()
         trns_set.src = src
         trns_set.header = header

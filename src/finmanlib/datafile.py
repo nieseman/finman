@@ -204,9 +204,10 @@ class SourceFileInfo:
         self.filename:          str = None
         self.filesize:          int = None
         self.sha1:              str = None
-        self.fmt:               str = None
+        self.csv_fmt:           str = None
         self.currency:          str = None
         self.columns:           Dict[str, str] = {}
+        self.header_values:     Dict[str, str] = {}
         self.num_lines:         int = None
         self.num_trns:          int = None
 
@@ -220,7 +221,6 @@ class SourceFileHeader:
     """
 
     def __init__(self):
-        self.bank_account:  str = None
         self.date_start:    str = None
         self.date_end:      str = None
         self.date_first:    str = None
