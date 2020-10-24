@@ -4,7 +4,7 @@ import datetime
 import hashlib
 from typing import List, Tuple, Dict
 
-from finmanlib.datafile import Trn, TrnsSet, SourceFileInfo, SourceFileHeader
+from finmanlib.datafile import Trn, TrnsSet, SourceFileInfo, TrnsSetHeader
 
 
 
@@ -166,8 +166,8 @@ class CsvFmt:
         src.num_trns = len(trns)
         # TBD: populate src.header_values
 
-        header = SourceFileHeader()
-        # TBD: populate SourceFileHeader
+        header = TrnsSetHeader()
+        # TBD: populate TrnsSetHeader
 
         trns_set = TrnsSet()
         trns_set.src = src

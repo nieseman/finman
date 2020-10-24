@@ -215,9 +215,15 @@ class SourceFileInfo:
         return f"<SourceFileInfo {self.filename}>"
 
 
-class SourceFileHeader:
+class TrnsSetHeader:
     """
-    Header data from a CSV source file.
+    Header for a consecutive set of transactions, containing some summary
+    information.
+
+    Initially, the transactions from one CSV file will be written as one
+    transaction set. However, if one manually splits this into multiple
+    transaction sets (possibly in different JSONL files), one may also manually
+    create corresponding TrnsSetHeader entries.
     """
 
     def __init__(self):
@@ -230,8 +236,7 @@ class SourceFileHeader:
         self.value_diff:    str = None
 
     def __repr__(self):
-        return f"<SourceFileHeader {self.bank_account} " \
-               f"({self.date_start}-{self.date_end})>"
+        return f"<TrnsSetHeader {self.date_start} to {self.date_end}>"
 
 
 class TrnsSet:
@@ -241,7 +246,7 @@ class TrnsSet:
 
     def __init__(self):
         self.src             = SourceFileInfo()
-        self.header          = SourceFileHeader()
+        self.header          = TrnsSetHeader()
         self.trns: List[Trn] = []
 
     def __repr__(self):
@@ -351,8 +356,11 @@ class JsonlFile:
 
         class ReadState(Enum):
             ExpectingSourceFileInfo = auto()
-            ExpectingSourceFileHeader = auto()
-            ExpectingSourceTrnOrFileHeader = auto()
+            ExpectingTrnsSetHeader = auto()
+            ExpectingTrnOrSourceFileInfo = auto()
+        # TBD: extend this function so that a TrnsSetHeader can be read without
+        # a preceeding SourceFileInfoHeader; re-use a previous
+        # SourceFileInfoHeader in that case.
 
         def finish_trns_set():
             nonlocal trns_set
@@ -366,14 +374,13 @@ class JsonlFile:
             # d is dict with all elements from JSONL line.
             tp = d['type']
             del d['type']
-            if tp not in ('SourceFileInfo', 'SourceFileHeader', 'Trn'):
+            if tp not in ('SourceFileInfo', 'TrnsSetHeader', 'Trn'):
                 logging.warning(f"{self.filename} line {line_num_in_jsonl}: "
                                 f"invalid entry type {tp}; ignoring.")
                 continue
 
             # If a new transaction set starts, finish a previous transaction set.
-            if read_state == ReadState.ExpectingSourceTrnOrFileHeader and \
-                    tp == 'SourceFileInfo':
+            if read_state == ReadState.ExpectingTrnOrSourceFileInfo and tp == 'SourceFileInfo':
                 finish_trns_set()
                 read_state = ReadState.ExpectingSourceFileInfo
 
@@ -385,18 +392,18 @@ class JsonlFile:
 
                 trns_set = TrnsSet()
                 self._update(trns_set.src, d)
-                read_state = ReadState.ExpectingSourceFileHeader
+                read_state = ReadState.ExpectingTrnsSetHeader
 
             # In case of a new source file header: store it.
-            elif read_state == ReadState.ExpectingSourceFileHeader:
+            elif read_state == ReadState.ExpectingTrnsSetHeader:
                 assert trns_set is not None, "wrong state of trns_set"
-                if tp != 'SourceFileHeader':
-                    raise ValueError("Expected type 'SourceFileHeader'")
+                if tp != 'TrnsSetHeader':
+                    raise ValueError("Expected type 'TrnsSetHeader'")
 
                 self._update(trns_set.header, d)
-                read_state = ReadState.ExpectingSourceTrnOrFileHeader
+                read_state = ReadState.ExpectingTrnOrSourceFileInfo
 
-            elif read_state == ReadState.ExpectingSourceTrnOrFileHeader:
+            elif read_state == ReadState.ExpectingTrnOrSourceFileInfo:
                 assert tp != 'SourceFileInfo', "tp==SourceFileInfo should have been covered above"
                 assert trns_set is not None, "wrong state of trns_set"
                 if tp != 'Trn':
@@ -412,8 +419,8 @@ class JsonlFile:
                 assert False, f"invalid state {read_state}"
 
         if trns_set is not None:
-            if read_state != ReadState.ExpectingSourceTrnOrFileHeader:
-                raise ValueError("Missing type 'SourceFileHeader'")
+            if read_state != ReadState.ExpectingTrnOrSourceFileInfo:
+                raise ValueError("Missing type 'TrnsSetHeader'")
             finish_trns_set()
 
 

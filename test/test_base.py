@@ -63,18 +63,19 @@ CONTENTS_TESTFILE_1_PART_A = [
         "filename": "test1a.csv",
         "filesize": None,
         "sha1": None,
-        "fmt": None,
+        "csv_fmt": None,
         "currency": None,
         "columns": {
             "Datum": "date",
             "Betrag": "value",
             "Beschreibung": "details"
         },
+        "header_values": {},
         "num_lines": None,
         "num_trns": None
     },
     {
-        "type": "SourceFileHeader",
+        "type": "TrnsSetHeader",
         "bank_account": None,
         "date_start": "1972-07-01",
         "date_end": "1972-07-31",
@@ -147,7 +148,7 @@ CONTENTS_TESTFILE_1_PART_B = [
         "num_trns": None
     },
     {
-        "type": "SourceFileHeader",
+        "type": "TrnsSetHeader",
         "bank_account": None,
         "date_start": "1972-08-01",
         "date_end": "1972-08-31",
@@ -181,18 +182,19 @@ CONTENTS_TESTFILE_2_PART_A = [
         "filename": "test2.csv",
         "filesize": None,
         "sha1": None,
-        "fmt": None,
+        "csv_fmt": None,
         "currency": None,
         "columns": {
             "Datum": "date",
             "Betrag": "value",
             "Beschreibung": "details"
         },
+        "header_values": {},
         "num_lines": None,
         "num_trns": None
     },
     {
-        "type": "SourceFileHeader",
+        "type": "TrnsSetHeader",
         "bank_account": None,
         "date_start": "1973-01-01",
         "date_end": "1973-01-31",
