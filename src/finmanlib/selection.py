@@ -30,7 +30,7 @@ class Selection:
 
         if trns is None:
             # Determine filtered set of transactions from 'filter_str'.
-            trn_filter = TrnFilter(finman_data.expand_fieldname, filter_str)
+            trn_filter = TrnFilter(finman_data, filter_str)
             self.trns = self._get_filtered_trns(finman_data, trn_filter)
             self.filter_str = filter_str
 
@@ -71,8 +71,10 @@ class Selection:
         return trns
 
 
-    def _get_names(self, fields_str: str) -> Tuple[List[str], List[str]]:
-        """ TBD """
+    def _eval_fields_str(self, fields_str: str) -> Tuple[List[str], List[str]]:
+        """
+        Evaluate a fields specification.
+        """
         FIXED_COLUMN_HEADINGS = {
             COL_IDX: '#',
             COL_MOD: 'mod',
@@ -81,7 +83,19 @@ class Selection:
 
         field_names = []
         column_headings = []
+        max_widths = []
         for field in fields_str.split(self.SEPARATOR_FIELDS):
+            # Determine maximum column width, if given in string.
+            max_width = None
+            if (pos := field.find(':')) >= 0:
+                try:
+                    max_width = int(field[pos + 1:])
+                except ValueError:
+                    pass
+                field = field[:pos]
+            max_widths.append(max_width)
+
+            # Determine field name and column heading.
             field_name = self.finman_data.expand_fieldname(field.strip())
             try:
                 column_heading = FIXED_COLUMN_HEADINGS[field_name]
@@ -90,14 +104,14 @@ class Selection:
             field_names.append(field_name)
             column_headings.append(column_heading)
 
-        return field_names, column_headings
+        return field_names, column_headings, max_widths
 
 
     def print_trns(self,
             fields_str: str,
             subset_str=None,
             index_col=False,
-            max_width=None,
+            output_width=None,
             print_csv=False,
             csv_sep=",",
             fh=sys.stdout):
@@ -107,8 +121,8 @@ class Selection:
         fields_str      The fields to print (type: str)
         subset_str      The subset of transactions to print (type: Optional[str])
         index_col       Print index column? (type: bool)
-        max_width       Maximum width of formatted output (type: Optional[int])
-                        max_width < 0 uses terminal width as maximum width.
+        output_width       Maximum width of formatted output (type: Optional[int])
+                        output_width < 0 uses terminal width as maximum width.
         print_csv       Print CSV instead of column format? (type: bool)
         csv_sep         Separator for CSV output (type: str)
         fh              File handle for output
@@ -118,12 +132,12 @@ class Selection:
         if index_col:
             fields_str = f"{COL_IDX}{self.SEPARATOR_FIELDS}{fields_str}"
 
-        field_names, column_headings = self._get_names(fields_str)
+        field_names, column_headings, max_widths = self._eval_fields_str(fields_str)
 
         if not print_csv:
-            if max_width is not None and max_width < 0:
-                max_width = os.get_terminal_size().columns
-            fmt = ColumnFormatter(self.trns, field_names, column_headings, max_width)
+            if output_width is not None and output_width < 0:
+                output_width = os.get_terminal_size().columns
+            fmt = ColumnFormatter(self.trns, field_names, column_headings, max_widths, output_width)
 
         # Print header.
         if print_csv:
@@ -134,12 +148,13 @@ class Selection:
         fh.write(header)
 
         # Print data lines.
+        invalid_fields = set()
         for trn in self.get_subset(subset_str):
 
             # Determine column values. Special treatment of "modified"-flag.
             values = []
             for field_name in field_names:
-                value = trn.get_field(field_name)
+                value = trn.get_field(field_name, invalid_fields)
                 if field_name == COL_MOD:
                     value = "*" if value is True else ""
                 values.append(value)
@@ -283,29 +298,36 @@ class ColumnFormatter:
             trns: List[Trn],
             field_names: List[str],
             column_headings: List[str],
-            max_width: Optional[int] = None):
-        self.max_width = max_width
-        self.col_fmts = self._get_formats(trns, field_names, column_headings)
+            max_widths: List[int],
+            output_width: Optional[int] = None):
+        self.output_width = output_width
+        self.col_fmts = self._get_formats(trns, field_names, column_headings, max_widths)
 
 
     @classmethod
     def _get_formats(cls,
             trns: List[Trn],
             field_names: List[str],
-            column_headings: List[str]) -> List[ColumnFormat]:
+            column_headings: List[str],
+            max_widths: List[int]) -> List[ColumnFormat]:
         """
         Get format (width, alignment) for all columns.
         """
         col_fmts = []
-        # TBD: Allow syntax for like 'date,descr:40,value'.
+        invalid_fields = set()
 
-        for field_name, column_heading in zip(field_names, column_headings):
-            values = [column_heading] + [trn.get_field(field_name) for trn in trns]
+        for field_name, column_heading, max_width in zip(field_names, column_headings, max_widths):
+
+            # Loop over all data lines.
+            values = [column_heading] + [trn.get_field(field_name, invalid_fields) for trn in trns]
             lengths = [(1 if type(value) is bool else len(value)) for value in values]
+
+            # Create ColumnFormat object.
+            width = max(lengths)
+            if max_width is not None:
+                width = min(width, max_width)
             left_aligned = not (field_name in (COL_VALUE, COL_IDX))
-            col_fmts.append(cls.ColumnFormat(
-                        width=max(lengths),
-                        left_aligned=left_aligned))
+            col_fmts.append(cls.ColumnFormat(width, left_aligned))
 
         return col_fmts
 
@@ -316,14 +338,15 @@ class ColumnFormatter:
         """
         values_fmt = []
         for fmt, value in zip(self.col_fmts, values):
+            value = value[:fmt.width]
             if fmt.left_aligned:
                 values_fmt.append(value.ljust(fmt.width))
             else:
                 values_fmt.append(value.rjust(fmt.width))
 
         line = " │ ".join(values_fmt)
-        if self.max_width is not None:
-            return line[:self.max_width] + "\n"
+        if self.output_width is not None:
+            return line[:self.output_width] + "\n"
         else:
             return line + "\n"
 
@@ -334,8 +357,8 @@ class ColumnFormatter:
         """
         fillers = ('─' * fmt.width for fmt in self.col_fmts)
         line = "─┼─".join(fillers)
-        if self.max_width is not None:
-            return line[:self.max_width] + "\n"
+        if self.output_width is not None:
+            return line[:self.output_width] + "\n"
         else:
             return line + "\n"
 
@@ -350,13 +373,13 @@ class TrnFilter:
 
     FilterCond = namedtuple('FilterCond', 'field op value')
 
-    def __init__(self, expand_fieldname, filter_str=""):
-        self.filter_conds = self._get_filter_conds(expand_fieldname, filter_str)
+    def __init__(self, finman_data, filter_str=""):
+        self.filter_conds = self._get_filter_conds(finman_data, filter_str)
 
 
     @classmethod
     def _get_filter_conds(cls,
-            expand_fieldname: Callable[[str], str],
+            finman_data: FinmanData,
             filter_str="") -> List[FilterCond]:
         """
         Get the filter conditions from given string.
@@ -388,7 +411,7 @@ class TrnFilter:
                     break
 
                 # Expand field name.
-                field_exp = expand_fieldname(field)
+                field_exp = finman_data.expand_fieldname(field)
                 if field_exp == "":
                     logging.warning(f"No expansion for field '{field}'; ignoring.")
                     break
@@ -438,15 +461,16 @@ class TrnFilter:
 
         Return False on any failed condition; or True otherwise.
         """
+        invalid_fields = set()
         for fc in self.filter_conds:
 
             if fc.op == 'contains':
                 # Search for sub-string.
-                value = trn.get_field(fc.field).upper()
+                value = trn.get_field(fc.field, invalid_fields).upper()
                 if not (value.find(fc.value) >= 0):
                     return False
             else:
-                value = trn.get_field(fc.field)
+                value = trn.get_field(fc.field, invalid_fields)
                 if fc.field == COL_VALUE:
                     # Column COL_VALUE contains decimal numbers.
                     value = decimal.Decimal(value)

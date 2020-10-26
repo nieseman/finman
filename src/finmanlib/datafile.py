@@ -130,13 +130,15 @@ class Trn:
         return top_level_fields.union(self.columns, self.notes)
 
 
-    def get_field(self, field: str) -> str:
+    def get_field(self, field: str, invalid_fields: Optional[set] = None) -> str:
         """
         Get field of transaction by name.
 
         Note: Fields may be hidden due to the order of look-up.
         """
-        if field == '_id':
+        if field == '':
+            return ""
+        elif field == '_id':
             return self._id
         elif field == '_idx':
             return self._idx
@@ -151,7 +153,11 @@ class Trn:
         elif field in self.notes:
             return self.notes[field]
         else:
-            logging.info(f"{self}: Invalid field name '{field}'")
+            if invalid_fields is None:
+                logging.info(f"{self}: Invalid field name '{field}'")
+            elif field not in invalid_fields:
+                logging.info(f"{self}: Invalid field name '{field}'")
+                invalid_fields.add(field)
             return ""
 
 

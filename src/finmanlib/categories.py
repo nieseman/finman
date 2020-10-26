@@ -12,7 +12,7 @@ import json
 import logging
 from typing import List, Callable
 
-from finmanlib.datafile import Trn
+from finmanlib.datafile import Trn, FinmanData
 from finmanlib.selection import TrnFilter
 
 
@@ -97,7 +97,7 @@ class Categories:
 
 
     def get_auto_assignments(self,
-            expand_fieldname: Callable[[str], str],
+            finman_data: FinmanData,
             trns: List[Trn]) -> CatAutoAssignment:
 
         # TBD: adjust var names?
@@ -106,7 +106,7 @@ class Categories:
         filter_dict: Dict[str, List[TrnFilter]] = {}
         for cat, conds in self.cats.items():
             if len(conds) > 0:
-                filter_dict[cat] = [TrnFilter(expand_fieldname, filter_str=cond) for cond in conds]
+                filter_dict[cat] = [TrnFilter(finman_data, filter_str=cond) for cond in conds]
                 
         # Prepare result variables.
         num_total = len(trns)

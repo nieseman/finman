@@ -46,7 +46,7 @@ class FinmanREPL:
     # TBD: optimize?
     #DEFAULT_FIELDS_STR = "dat|desc|val"
     #DEFAULT_FIELDS = "date|addressee:40|value|category|remark:30"
-    DEFAULT_FIELDS = "date|desc|value|_is_mod|cat|remark"
+    DEFAULT_FIELDS = "date|desc:40|value|_is_mod|cat|remark:40"
 
     def __init__(self, args):
         if args.cat is None:
@@ -152,7 +152,7 @@ class FinmanREPL:
                 fields_str=self.fields_str,
                 subset_str=subset_str,
                 index_col=True,
-                max_width=-1)
+                output_width=-1)
 
 
     def set_filter(self, filter_str: str):
@@ -237,7 +237,7 @@ class FinmanREPL:
         # Determine new categories, and store these category candidates in the
         # Trn objects.
         aa = self.categories.get_auto_assignments(
-                self.finman_data.expand_fieldname,
+                self.finman_data,
                 trns=self.selection.trns)
 
         for trn, new_cat in aa.no_prev.items():
@@ -279,7 +279,7 @@ class FinmanREPL:
                     Selection(self.finman_data, trns=trns).print_trns(
                             fields_str=tmp_fields_str,
                             index_col=True,
-                            max_width=-1)
+                            output_width=-1)
                 elif selection == "yes":
                     to_be_confirmed = False     # quit loop
                 else:
