@@ -9,6 +9,7 @@ transactions from a FinmanData object:
 
 from collections import namedtuple
 import decimal
+from enum import Enum
 import logging
 import os
 import sys
@@ -18,6 +19,8 @@ from finmanlib.datafile import FinmanData, Trn, \
     COL_ID, COL_IDX, COL_MOD, COL_DATE, COL_VALUE, COL_CAT_ALT 
 
 
+
+OutputFormat = Enum('OutputFormat', 'csv table details')
 
 class Selection:
     """
@@ -119,7 +122,7 @@ class Selection:
             subset_str=None,
             index_col=False,
             output_width=None,
-            print_csv=False,
+            output_format=OutputFormat.table,
             csv_sep=",",
             fh=sys.stdout):
         """
@@ -130,7 +133,7 @@ class Selection:
         index_col       Print index column? (type: bool)
         output_width       Maximum width of formatted output (type: Optional[int])
                         output_width < 0 uses terminal width as maximum width.
-        print_csv       Print CSV instead of column format? (type: bool)
+        output_format   Format of output (type: OutputFormat)
         csv_sep         Separator for CSV output (type: str)
         fh              File handle for output
         """
@@ -141,17 +144,21 @@ class Selection:
 
         field_names, column_headings, max_widths = self._eval_fields_str(fields_str)
 
-        if not print_csv:
+        if output_format == OutputFormat.table:
             if output_width is not None and output_width < 0:
                 output_width = os.get_terminal_size().columns
             fmt = ColumnFormatter(self.trns, field_names, column_headings, max_widths, output_width)
 
         # Print header.
-        if print_csv:
+        if output_format == OutputFormat.csv:
             header = csv_sep.join(column_headings) + "\n"
-        else:
+        elif output_format == OutputFormat.table:
             header = fmt.get_formatted_line(column_headings) + \
                      fmt.get_separator_line()
+        elif output_format == OutputFormat.details:
+            header = ""
+        else:
+            assert False, f"Invalid output format: {output_format}"
         fh.write(header)
 
         # Print data lines.
@@ -166,16 +173,20 @@ class Selection:
                     value = "*" if value is True else ""
                 values.append(value)
 
-            if print_csv:
+            if output_format == OutputFormat.csv:
                 line = csv_sep.join(values) + "\n"
-            else:
+            elif output_format == OutputFormat.table:
                 line = fmt.get_formatted_line(values)
+            elif output_format == OutputFormat.details:
+                line = self.get_details(trn)
             fh.write(line)
 
         # Print footer.
-        if not print_csv:
+        if output_format == OutputFormat.table:
             footer = fmt.get_separator_line() + \
                      fmt.get_formatted_line(column_headings)
+        else:
+            footer = ""
         fh.write(footer)
 
 
@@ -194,6 +205,23 @@ class Selection:
                 else:
                     trns += self.trns[rng_min - 1:rng_max]
             return trns
+
+
+    @staticmethod
+    def get_details(trn: Trn) -> str:
+        """ TBD """
+        s = f"# {trn._idx}\n"
+        s += "    Top-level fields:\n"
+        for field in ('_id', '_idx', '_is_modified', '_cat_alt', 'line_num_in_csv'):
+            s += f"        {field + ':':<28}{getattr(trn, field)}\n"
+        s += "    Columns:\n"
+        for key, value in trn.columns.items():
+            s += f"        {key + ':':<28}'{value}'\n"
+        s += "    Notes:\n"
+        for key, value in trn.notes.items():
+            s += f"        {key + ':':<28}'{value}'\n"
+
+        return s
 
 
 

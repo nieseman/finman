@@ -11,7 +11,7 @@ import sys
 
 from finmanlib.categories import Categories
 from finmanlib.datafile import FinmanData
-from finmanlib.selection import Selection
+from finmanlib.selection import Selection, OutputFormat
 
 
 USAGE = """
@@ -22,6 +22,7 @@ Show transactions:
     f <filter_str>          set filter for selection
     fields <fields_str>     set fields to be printed
     s <fields_str>          set sort order
+    d <subset_str>          show details of subset of selection
 
 Modify transactions:
     r <subset_str>          set remarks for subset of selection
@@ -50,7 +51,9 @@ class FinmanREPL:
     # TBD: optimize?
     #DEFAULT_FIELDS_STR = "dat|desc|val"
     #DEFAULT_FIELDS = "date|addressee:40|value|category|remark:30"
-    DEFAULT_FIELDS = "date|desc:40|value|_is_mod|cat|remark:40"
+    #DEFAULT_FIELDS = "date|desc:40|value|_is_mod|cat|remark:40"
+    DEFAULT_FIELDS = "date|addr:30|desc:40|value|_is_mod|cat|remark:40"
+    FIELDS_CAT_DIFF = "date|addr:20|desc:20|value|_is_mod|_cat_alt|cat:20"
 
     def __init__(self, args):
         if args.cat is None:
@@ -120,7 +123,10 @@ class FinmanREPL:
 
             # Selection and printing.
             elif cmd == 'p':
-                self.print_trns()
+                self.print_transactions()
+
+            elif cmd == 'd':
+                self.print_details(subset_str=arg)
 
             elif cmd == 'f':
                 self.set_filter(filter_str=arg)
@@ -149,7 +155,7 @@ class FinmanREPL:
 
             # Python stuff.
             elif cmd == 'vars':
-                self.print_vars()
+                self.print_variables()
 
             elif cmd == 'py':
                 self.start_python_repl()
@@ -163,7 +169,7 @@ class FinmanREPL:
             print(f"Cannot write file {self.HIST_FILE}.")
 
 
-    def print_trns(self, subset_str=None):
+    def print_transactions(self, subset_str=None):
         """
         Print current selection of transactions.
         """
@@ -175,11 +181,24 @@ class FinmanREPL:
                 output_width=-1)
 
 
+    def print_details(self, subset_str=None):
+        """
+        Print current selection of transactions.
+        """
+        if subset_str == "":
+            subset_str = "1-"
+        print()
+        self.selection.print_trns(
+                fields_str=self.fields_str,
+                subset_str=subset_str,
+                output_format=OutputFormat.details)
+
+
     def set_filter(self, filter_str: str):
         try:
             self.selection = Selection(self.finman_data, filter_str=filter_str, sort_str=self.sort_str)
             self.filter_str = filter_str
-            self.print_trns()
+            self.print_transactions()
         except ValueError as e:
             print(f"Error: {e} TBD: to be checked")
 
@@ -189,10 +208,10 @@ class FinmanREPL:
             if fields_str == "":
                 fields_str = self.DEFAULT_FIELDS
             # TBD: re-shuffle these lines;
-            # TBD: adapt print_trns()?
+            # TBD: adapt print_transactions()?
             # TBD: to properly catch error
             self.fields_str = fields_str
-            self.print_trns()
+            self.print_transactions()
         except ValueError as e:
             print(f"Error: {e} TBD: to be checked")
 
@@ -201,13 +220,13 @@ class FinmanREPL:
         try:
             self.selection = Selection(self.finman_data, filter_str=self.filter_str, sort_str=sort_str)
             self.sort_str = sort_str
-            self.print_trns()
+            self.print_transactions()
         except ValueError as e:
             print(f"Error: {e} TBD: to be checked")
 
 
     def set_remarks(self, subset_str: str):
-        self.print_trns(subset_str)
+        self.print_transactions(subset_str)
         print()
         for trn in self.selection.get_subset(subset_str):
             try:
@@ -216,11 +235,11 @@ class FinmanREPL:
                 print("... setting of remaining remarks canceled.")
                 return
             trn.set_remark(remark)
-        self.print_trns(subset_str)
+        self.print_transactions(subset_str)
 
 
     def set_category(self, subset_str: str):
-        self.print_trns(subset_str)
+        self.print_transactions(subset_str)
         print()
         try:
             new_cat = None
@@ -248,7 +267,7 @@ class FinmanREPL:
         # Setting new category.
         for trn in self.selection.get_subset(subset_str):
             trn.set_cat(new_cat, cat_auto=False)
-        self.print_trns(subset_str)
+        self.print_transactions(subset_str)
 
 
     def list_categories(self):
@@ -303,7 +322,7 @@ class FinmanREPL:
                     elif selection == "4":
                         trns_dict = aa.multi
 
-                    tmp_fields_str = "date|desc|value|_is_mod|cat|_cat_alt"
+                    tmp_fields_str = self.FIELDS_CAT_DIFF
                     trns = list(trns_dict.keys())
                     Selection(self.finman_data, trns=trns).print_trns(
                             fields_str=tmp_fields_str,
@@ -326,7 +345,7 @@ class FinmanREPL:
             
 
 
-    def print_vars(self):
+    def print_variables(self):
         """
         Print all relevant variables and information.
         """
@@ -342,7 +361,7 @@ class FinmanREPL:
 
 
     def start_python_repl(self):
-        self.print_vars()
+        self.print_variables()
         print("Entering Python REPL (hit Ctrl-D to quit)...")
         print()
         code.interact(local={
