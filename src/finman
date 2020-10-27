@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os
 
 from finmanlib.repl import FinmanREPL
 
@@ -23,6 +24,14 @@ def get_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    level = os.getenv("FINMAN_DEBUG", "info").lower()
+    level = {
+        "debug":   logging.DEBUG,
+        "info":    logging.INFO,
+        "warning": logging.WARNING,
+        "error":   logging.ERROR
+    }[level]
+    logging.basicConfig(level=level, format="%(message)s")
+
     args = get_args()
     FinmanREPL(args).run()
