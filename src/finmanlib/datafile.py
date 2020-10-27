@@ -213,7 +213,7 @@ class SourceFileInfo:
         self.csv_fmt:           str = None
         self.currency:          str = None
         self.columns:           Dict[str, str] = {}
-        self.header_values:     Dict[str, str] = {}
+        self.header_lines:      List[str] = []
         self.num_lines:         int = None
         self.num_trns:          int = None
 

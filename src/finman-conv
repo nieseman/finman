@@ -32,8 +32,15 @@ def main():
     args = get_args()
 
     # Read CSV format file, convert CSV and print JSONL.
-    csv_fmt = CsvFmt(json.load(open(args.file_csv_fmt)))
+    csv_fmt_json = json.load(open(args.file_csv_fmt))
+    assert type(csv_fmt_json) is dict, \
+            "CSV-Format file {args.file_csv_fmt} must contain a dict."
+
+    # Convert CSV input file.
+    csv_fmt = CsvFmt(**csv_fmt_json)
     trns_set = csv_fmt.process_csv(args.file_csv)
+
+    # Print JSONL data.
     jsonl_file = JsonlFile("")
     jsonl_file.trns_sets = [trns_set]
     jsonl_file._write(sys.stdout)

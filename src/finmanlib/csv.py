@@ -8,46 +8,32 @@ from finmanlib.datafile import Trn, TrnsSet, SourceFileInfo, TrnsSetHeader
 
 
 
-class ValueFmt:
-
-    date: str = "YYYY-MM-DD"
-    has_thousands_comma: bool = True
-    has_comma_as_decimal: bool = True
-
-
 class CsvFmt:
     """
     Format description of one kind of CSV source file.
     """
 
-    def __init__(self, d: Dict):
+    def __init__(self, **kwargs):
         # Default values.
         self.name                   = ""
         self.comment                = ""
         self.encoding               = "utf-8"
         self.separator              = ";"
         self.currency               = "EUR"
-        self.currency_sym           = "€"
-        self.currency_in_front      = False
-        self.header_lines           = 0
+        self.num_header_lines       = 0
         self.line_with_column_names = 0
-        self.fmt                    = ValueFmt()
-        self.fmt_header             = ValueFmt()
-        self.values_in_header       = {}
+        self.fmt_date               = "YYYY-MM-DD"
+        self.fmt_value              = "x,xxx.yy"
         self.columns                = {}
         
         # Store provided information.
-        for key, value in d.items():
-            if key not in vars(self):
-                assert False, "TBD: wrong field"
-            if key == 'fmt':
-                for key2, value2 in value.items():
-                    setattr(self.fmt, key2, value2)
-            elif key == 'fmt_header':
-                for key2, value2 in value.items():
-                    setattr(self.fmt, key2, value2)
-            else:
-                setattr(self, key, value)
+        for key, value in kwargs.items():
+            assert key in vars(self), f"Wrong field in CsvFmt: '{key}'"
+            setattr(self, key, value)
+
+        # Adjust format patterns.
+        self.fmt_date = self.fmt_date.upper().replace('.', '/').replace('-', '/')
+        self.fmt_value = self.fmt_value.lower()
 
 
     @staticmethod
@@ -55,7 +41,6 @@ class CsvFmt:
         """
         Remove quotes from a string.
         """
-        # TBD: make new field
         if type(s) is not str:
             return s
         if len(s) >= 2 and \
@@ -66,32 +51,49 @@ class CsvFmt:
             return s
 
 
-    def conv_date(self, s: str, fmt: ValueFmt) -> str:
+    @staticmethod
+    def conv_date(s: str, fmt_date: str) -> str:
         """
         Convert a given date to standard format.
         """
-        date_pattern = self.fmt.date.upper().replace('.', '/').replace('-', '/')
-        if date_pattern == "DD/MM/YYYY":
+        assert len(s) == 10, f"Invalid length of date string '{s}'"
+
+        if fmt_date == "DD/MM/YYYY":
             dd, mm, yyyy = s[0:2], s[3:5], s[6:10]
-        elif date_pattern == "MM/DD/YYYY":
+        elif fmt_date == "MM/DD/YYYY":
             mm, dd, yyyy = s[0:2], s[3:5], s[6:10]
-        elif date_pattern == "YYYY/MM/DD":
+        elif fmt_date == "YYYY/MM/DD":
             yyyy, mm, dd = s[0:4], s[5:7], s[8:10]
         else:
-            assert(False)
+            assert False, f"Invalid date format: '{fmt_date}'"
 
         return f"{yyyy}-{mm}-{dd}"
 
 
-    def conv_value(self, s: str, fmt: ValueFmt) -> str:
-        if fmt.has_thousands_comma:
+    @staticmethod
+    def conv_value(s: str, fmt_value: str) -> str:
+        """
+        Convert a given money value to standard format.
+        """
+        assert 4 <= len(s) <= 9, f"Invalid length of value string '{s}'"
+
+        if fmt_value == "xxxx.yy":
+            pass
+        elif fmt_value == "x,xxx.yy":
             s = s.replace(',', '')
-        if fmt.has_comma_as_decimal:
-            s = s.replace(',', '.')
-        return "{:+.2f}".format(float(s))
+        elif fmt_value == "x.xxx,yy":
+            s = s.replace('.', '').replace(',', '.')
+        else:
+            assert False, f"Invalid value format: '{fmt_value}'"
+
+        return f"{float(s):+.2f}"
 
 
-    def column_mapping(self, lines_header: List[str]) -> Dict[str, int]:
+    def _column_mapping(self, lines_header: List[str]) -> Dict[str, int]:
+        """
+        Obtain a name-to-column-index mapping,
+        from the column-header line in the CSV file.
+        """
         csv_col_headers_line = lines_header[self.line_with_column_names - 1]
         csv_col_headers = [self.unquote(hdr) for hdr in csv_col_headers_line.split(self.separator)]
         csv_col_headers = [self.unquote(hdr) for hdr in csv_col_headers_line.split(self.separator)]
@@ -101,18 +103,19 @@ class CsvFmt:
         return attr_name_to_idx
 
 
-    def conv_trn(self,
-            line_num_in_csv: int, line: str, col_map: Dict[str, int],
-            fmt: ValueFmt) -> Trn:
-
+    def _conv_trn(self, line_num_in_csv: int, line: str, col_map: Dict[str, int]) -> Trn:
+        """
+        Obtain a Trn object from the data contained in the given line from the
+        CSV file.
+        """
         column_values = line.split(self.separator)
         columns = {}
         for col_name, col_idx in col_map.items():
             col_value = self.unquote(column_values[col_idx])
             if col_name == 'date':
-                col_value = self.conv_date(col_value, fmt)
+                col_value = self.conv_date(col_value, self.fmt_date)
             elif col_name == 'value':
-                col_value = self.conv_value(col_value, fmt)
+                col_value = self.conv_value(col_value, self.fmt_value)
             columns[col_name] = col_value
 
         trn = Trn()
@@ -121,7 +124,7 @@ class CsvFmt:
         return trn
 
 
-    def read_sourcefile(self, filename: str) -> Tuple[SourceFileInfo, List[str]]:
+    def _read_sourcefile(self, filename: str) -> Tuple[SourceFileInfo, List[str]]:
         """
         Obtain CSV file and SourceFile descriptor.
         """
@@ -142,35 +145,33 @@ class CsvFmt:
         src.columns = self.columns
         src.num_lines = len(lines)
         src.num_trns = 0
+        src.header_lines = lines[:self.num_header_lines]
 
         return src, lines
 
 
     def process_csv(self, filename: str) -> TrnsSet:
         """
-        TBD
+        Create a transaction set from the given CSV file.
         """
-        if self.fmt_header is None:
-            self.fmt_header = self.fmt
-
         # Obtain lines from CSV files.
-        src, lines = self.read_sourcefile(filename)
-        num = self.header_lines
+        src, lines = self._read_sourcefile(filename)
+        num = self.num_header_lines
         lines_header = lines[:num]
         lines_trns = lines[num:]
 
-        # Create transaction set.
-        col_map = self.column_mapping(lines_header)
-        trns = [self.conv_trn(line_num_in_csv, line.strip(), col_map, self.fmt)
+        # Create set of Trn objects.
+        col_map = self._column_mapping(lines_header)
+        trns = [self._conv_trn(line_num_in_csv, line.strip(), col_map)
                     for line_num_in_csv, line in enumerate(lines_trns, start=num+1)]
         src.num_trns = len(trns)
-        # TBD: populate src.header_values
 
-        header = TrnsSetHeader()
-        # TBD: populate TrnsSetHeader
-
+        # Create TrnsSet object.
+        # (For the moment, the TrnsSetHeader object is not filled; needs to be
+        #  adjusted manually.)
         trns_set = TrnsSet()
         trns_set.src = src
-        trns_set.header = header
+        trns_set.header = TrnsSetHeader()
         trns_set.trns = trns
+
         return trns_set

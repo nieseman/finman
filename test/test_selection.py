@@ -111,7 +111,7 @@ class TestFinmanData(TestWithSampleJsonFiles):
         Dec = decimal.Decimal
 
         def check(filter_str: str, filter_conds: List[FC]):
-            trn_filter = TrnFilter(self.finman_data.expand_fieldname, filter_str)
+            trn_filter = TrnFilter(self.finman_data, filter_str)
             self.assertEqual(trn_filter.filter_conds, filter_conds)
 
         #
