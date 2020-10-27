@@ -5,6 +5,7 @@ An interactive REPL (read-eval-print loop) for Finman.
 """
 
 import code
+import os
 import readline
 import sys
 
@@ -44,6 +45,8 @@ Other:
 
 class FinmanREPL:
 
+    HIST_FILE = f"{os.getenv('HOME')}/.finman_history"
+
     # TBD: optimize?
     #DEFAULT_FIELDS_STR = "dat|desc|val"
     #DEFAULT_FIELDS = "date|addressee:40|value|category|remark:30"
@@ -71,6 +74,11 @@ class FinmanREPL:
         """
         Run simple REPL loop.
         """
+        try:
+            readline.read_history_file(self.HIST_FILE)
+        except OSError:
+            pass
+
         print("Enter '?' for help.")
         quit = False
         while not quit:
@@ -148,6 +156,11 @@ class FinmanREPL:
 
             else:
                 print(f"Unknown command: '{cmd}'")
+
+        try:
+            readline.write_history_file(self.HIST_FILE)
+        except OSError:
+            print(f"Cannot write file {self.HIST_FILE}.")
 
 
     def print_trns(self, subset_str=None):
