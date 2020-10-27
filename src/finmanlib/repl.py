@@ -20,6 +20,7 @@ Show transactions:
     p                       print current selection
     f <filter_str>          set filter for selection
     fields <fields_str>     set fields to be printed
+    s <fields_str>          set sort order
 
 Modify transactions:
     r <subset_str>          set remarks for subset of selection
@@ -53,14 +54,17 @@ class FinmanREPL:
             self.categories = None
         else:
             self.categories = Categories(cats_file=args.cat)
+
         try:
             self.finman_data = FinmanData(filenames=args.jsonl)
         except Exception as e:
             print(str(e))
             sys.exit(1)
+
+        self.sort_str = ""
         self.filter_str = ""
         self.fields_str = self.DEFAULT_FIELDS
-        self.selection = Selection(self.finman_data, filter_str="")
+        self.selection = Selection(self.finman_data, filter_str="", sort_str="")
 
 
     def run(self):
@@ -116,6 +120,9 @@ class FinmanREPL:
             elif cmd == 'fields':
                 self.set_fields(fields_str=arg)
 
+            elif cmd == 's':
+                self.set_sort(sort_str=arg)
+
             # Remarks and categories.
             elif cmd == 'r':
                 self.set_remarks(subset_str=arg)
@@ -157,7 +164,7 @@ class FinmanREPL:
 
     def set_filter(self, filter_str: str):
         try:
-            self.selection = Selection(self.finman_data, filter_str=filter_str)
+            self.selection = Selection(self.finman_data, filter_str=filter_str, sort_str=self.sort_str)
             self.filter_str = filter_str
             self.print_trns()
         except ValueError as e:
@@ -172,6 +179,15 @@ class FinmanREPL:
             # TBD: adapt print_trns()?
             # TBD: to properly catch error
             self.fields_str = fields_str
+            self.print_trns()
+        except ValueError as e:
+            print(f"Error: {e} TBD: to be checked")
+
+
+    def set_sort(self, sort_str: str):
+        try:
+            self.selection = Selection(self.finman_data, filter_str=self.filter_str, sort_str=sort_str)
+            self.sort_str = sort_str
             self.print_trns()
         except ValueError as e:
             print(f"Error: {e} TBD: to be checked")

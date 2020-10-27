@@ -25,13 +25,16 @@ class Selection:
     """
     SEPARATOR_FIELDS = '|'
 
-    def __init__(self, finman_data: FinmanData, filter_str="", trns=None):
+    def __init__(self, finman_data: FinmanData, filter_str="", sort_str="", trns=None):
         self.finman_data = finman_data
 
         if trns is None:
             # Determine filtered set of transactions from 'filter_str'.
+            sort_fields = [finman_data.expand_fieldname(field.strip())
+                    for field in sort_str.split(self.SEPARATOR_FIELDS)
+                        if field != ""]
             trn_filter = TrnFilter(finman_data, filter_str)
-            self.trns = self._get_filtered_trns(finman_data, trn_filter)
+            self.trns = self._get_filtered_trns(finman_data, trn_filter, sort_fields)
             self.filter_str = filter_str
 
             # Enumerate filtered transactions.
@@ -49,7 +52,8 @@ class Selection:
 
 
     @staticmethod   # TBD: rename, put 'sorted' into function name?
-    def _get_filtered_trns(finman_data: FinmanData, trn_filter: 'TrnFilter') -> List[Trn]:
+    def _get_filtered_trns(finman_data: FinmanData,
+            trn_filter: 'TrnFilter', sort_fields: List[str] = None) -> List[Trn]:
         """
         Get all transactions which match the filter conditions.
         Those conditions have been stored in trn_filter.
@@ -66,7 +70,10 @@ class Selection:
                     if trn_filter.match(trn):
                         trns.append(trn)
 
-        # TBD: sorting.
+        if sort_fields:
+            for field in reversed(sort_fields):
+                if field:
+                    trns.sort(key=lambda trn: trn.get_field(field))
 
         return trns
 
