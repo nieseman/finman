@@ -80,6 +80,8 @@ class Trn:
                     Add any custom fields here; they remain unchanged.
     """
 
+    INVALID_FIELD = None
+
     def __init__(self, _id: Optional[str]=None):
         self._id                      = _id
         self._idx                     = None
@@ -137,17 +139,9 @@ class Trn:
         Note: Fields may be hidden due to the order of look-up.
         """
         if field == '':
-            return ""
-        elif field == '_id':
-            return self._id
-        elif field == '_idx':
-            return self._idx
-        elif field == '_is_modified':
-            return self._is_modified
-        elif field == '_cat_alt':
-            return self._cat_alt
-        elif field == 'line_num_in_csv':
-            return self.line_num_in_csv
+            return self.INVALID_FIELD
+        elif field in ('_id', '_idx', '_is_modified', '_cat_alt', 'line_num_in_csv'):
+            return getattr(self, field)
         elif field in self.columns:
             return self.columns[field]
         elif field in self.notes:
@@ -158,7 +152,7 @@ class Trn:
             elif field not in invalid_fields:
                 logging.info(f"{self}: Invalid field name '{field}'")
                 invalid_fields.add(field)
-            return ""
+            return self.INVALID_FIELD
 
 
     def set_cat_alt(self, cat: str):

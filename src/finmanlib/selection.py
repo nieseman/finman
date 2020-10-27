@@ -210,7 +210,7 @@ class Selection:
     @staticmethod
     def get_details(trn: Trn) -> str:
         """ TBD """
-        s = f"# {trn._idx}\n"
+        s = f"\n# {trn._idx}\n"
         s += "    Top-level fields:\n"
         for field in ('_id', '_idx', '_is_modified', '_cat_alt', 'line_num_in_csv'):
             s += f"        {field + ':':<28}{getattr(trn, field)}\n"

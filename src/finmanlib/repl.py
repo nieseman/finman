@@ -187,7 +187,6 @@ class FinmanREPL:
         """
         if subset_str == "":
             subset_str = "1-"
-        print()
         self.selection.print_trns(
                 fields_str=self.fields_str,
                 subset_str=subset_str,
