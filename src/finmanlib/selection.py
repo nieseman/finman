@@ -137,6 +137,7 @@ class Selection:
         csv_sep         Separator for CSV output (type: str)
         fh              File handle for output
         """
+        trns = self.get_subset(subset_str)
 
         # Preperations.
         if index_col:
@@ -147,6 +148,11 @@ class Selection:
         if output_format == OutputFormat.table:
             if output_width is not None and output_width < 0:
                 output_width = os.get_terminal_size().columns
+
+            # TBD: refactor into TrnsSet?
+            sum_value = sum(trn.value() for trn in trns)
+            sum_str = "%+.2f" % sum_value
+
             fmt = ColumnFormatter(self.trns, field_names, column_headings, max_widths, output_width)
 
         # Print header.
@@ -163,7 +169,7 @@ class Selection:
 
         # Print data lines.
         invalid_fields = set()
-        for trn in self.get_subset(subset_str):
+        for trn in trns:
 
             # Determine column values. Special treatment of "modified"-flag.
             values = []
@@ -183,8 +189,22 @@ class Selection:
 
         # Print footer.
         if output_format == OutputFormat.table:
-            footer = fmt.get_separator_line() + \
-                     fmt.get_formatted_line(column_headings)
+            for col_idx, col_name in enumerate(field_names):
+                if col_name == COL_VALUE:
+                    break
+            else:
+                col_idx = None
+
+            if col_idx is not None:
+                values = [""] * len(field_names)
+                values[0] = "Σ"
+                values[col_idx] = sum_str
+                footer = fmt.get_separator_line() + \
+                         fmt.get_formatted_line(values)
+            else:
+                footer = ""
+            footer += fmt.get_separator_line() + \
+                      fmt.get_formatted_line(column_headings)
         else:
             footer = ""
         fh.write(footer)
@@ -371,6 +391,7 @@ class ColumnFormatter:
         """
         Get formatted line for given list of values.
         """
+        assert len(self.col_fmts) == len(values)
         values_fmt = []
         for fmt, value in zip(self.col_fmts, values):
             value = value[:fmt.width]

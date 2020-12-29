@@ -8,6 +8,7 @@ import code
 import os
 import readline
 import sys
+from typing import Optional
 
 from finmanlib.categories import Categories
 from finmanlib.datafile import FinmanData
@@ -73,7 +74,7 @@ class FinmanREPL:
         self.selection = Selection(self.finman_data, filter_str="", sort_str="")
 
 
-    def run(self):
+    def run_repl(self):
         """
         Run simple REPL loop.
         """
@@ -83,8 +84,8 @@ class FinmanREPL:
             pass
 
         print("Enter '?' for help.")
-        quit = False
-        while not quit:
+        quit = None
+        while quit is not True:
             
             # Read command.
             try:
@@ -102,71 +103,78 @@ class FinmanREPL:
             cmd_parts = cmd_line.split()
             cmd = cmd_parts[0]
             arg = cmd_parts[1] if len(cmd_parts) >= 2 else ""
-            if cmd == '?':
-                print()
-                print(USAGE.strip())
-
-            # Saving and quitting program.
-            elif cmd == 'Q':
-                if self.finman_data.is_modified():
-                    print("Skipping unsaved changes.")
-                quit = True
-
-            elif cmd == 'q':
-                if self.finman_data.is_modified():
-                    print("Unsaved changes; will not quit.")
-                else:
-                    quit = True
-
-            elif cmd == 'save':
-                self.finman_data.save()
-
-            # Selection and printing.
-            elif cmd == 'p':
-                self.print_transactions()
-
-            elif cmd == 'd':
-                self.print_details(subset_str=arg)
-
-            elif cmd == 'f':
-                self.set_filter(filter_str=arg)
-
-            elif cmd == 'fields':
-                self.set_fields(fields_str=arg)
-
-            elif cmd == 's':
-                self.set_sort(sort_str=arg)
-
-            # Remarks and categories.
-            elif cmd == 'r':
-                self.set_remarks(subset_str=arg)
-
-            elif cmd == 'c':
-                self.set_category(subset_str=arg)
-
-            elif cmd == 'cat-list':
-                self.list_categories()
-
-            elif cmd == 'cat-reload':
-                self.categories.load()
-
-            elif cmd == 'cat-auto':
-                self.set_categories_auto()
-
-            # Python stuff.
-            elif cmd == 'vars':
-                self.print_variables()
-
-            elif cmd == 'py':
-                self.start_python_repl()
-
-            else:
-                print(f"Unknown command: '{cmd}'")
+            quit = self.run_cmd(cmd, arg)
 
         try:
             readline.write_history_file(self.HIST_FILE)
         except OSError:
             print(f"Cannot write file {self.HIST_FILE}.")
+
+
+    def run_cmd(self, cmd: str, arg: str) -> Optional[bool]:
+        """
+        Run given command with argument. Return True if the REPL should stop.
+        """
+        if cmd == '?':
+            print()
+            print(USAGE.strip())
+
+        # Saving and quitting program.
+        elif cmd == 'Q':
+            if self.finman_data.is_modified():
+                print("Skipping unsaved changes.")
+            return True
+
+        elif cmd == 'q':
+            if self.finman_data.is_modified():
+                print("Unsaved changes; will not quit.")
+            else:
+                return True
+
+        elif cmd == 'save':
+            self.finman_data.save()
+
+        # Selection and printing.
+        elif cmd == 'p':
+            self.print_transactions()
+
+        elif cmd == 'd':
+            self.print_details(subset_str=arg)
+
+        elif cmd == 'f':
+            self.set_filter(filter_str=arg)
+
+        elif cmd == 'fields':
+            self.set_fields(fields_str=arg)
+
+        elif cmd == 's':
+            self.set_sort(sort_str=arg)
+
+        # Remarks and categories.
+        elif cmd == 'r':
+            self.set_remarks(subset_str=arg)
+
+        elif cmd == 'c':
+            self.set_category(subset_str=arg)
+
+        elif cmd == 'cat-list':
+            self.list_categories()
+
+        elif cmd == 'cat-reload':
+            self.categories.load()
+
+        elif cmd == 'cat-auto':
+            self.set_categories_auto()
+
+        # Python stuff.
+        elif cmd == 'vars':
+            self.print_variables()
+
+        elif cmd == 'py':
+            self.start_python_repl()
+
+        else:
+            print(f"Unknown command: '{cmd}'")
 
 
     def print_transactions(self, subset_str=None):

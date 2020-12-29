@@ -37,6 +37,7 @@ header information (e.g. date ranges)
 """
 
 from collections.abc import Sequence
+from decimal import Decimal
 from enum import Enum, auto
 import json
 import logging
@@ -130,6 +131,11 @@ class Trn:
     def get_all_field_names(self) -> Set[str]:
         top_level_fields = {'_id', '_idx', '_is_modified', '_cat_alt', 'line_num_in_csv'}
         return top_level_fields.union(self.columns, self.notes)
+
+
+    def value(self) -> Decimal:
+        assert COL_VALUE in self.columns
+        return Decimal(self.columns[COL_VALUE])
 
 
     def get_field(self, field: str, invalid_fields: Optional[set] = None) -> str:
@@ -329,10 +335,7 @@ class JsonlFile:
             self.trns_sets = []
             self._construct_from_dicts(dicts, trn_id_prefix)
 
-        except OSError as e:
-            raise Exception(f"Error reading JSONL file {filename}: {e}")
-
-        except Exception as e:
+        except json.JSONDecodeError as e:
             raise Exception(f"Error reading JSONL file {self.filename}, "
                             f"line {line_num_in_jsonl + 1}: {e}")
 
