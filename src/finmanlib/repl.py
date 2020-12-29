@@ -12,7 +12,7 @@ from typing import Optional
 
 from finmanlib.categories import Categories
 from finmanlib.datafile import FinmanData
-from finmanlib.selection import Selection, OutputFormat
+from finmanlib.selection import Selection
 
 
 USAGE = """
@@ -182,11 +182,10 @@ class FinmanREPL:
         Print current selection of transactions.
         """
         print()
-        self.selection.print_trns(
+        self.selection.print_trns_table(
                 fields_str=self.fields_str,
                 subset_str=subset_str,
-                index_col=True,
-                output_width=-1)
+                index_col=True)
 
 
     def print_details(self, subset_str=None):
@@ -195,10 +194,9 @@ class FinmanREPL:
         """
         if subset_str == "":
             subset_str = "1-"
-        self.selection.print_trns(
+        self.selection.print_trns_details(
                 fields_str=self.fields_str,
-                subset_str=subset_str,
-                output_format=OutputFormat.details)
+                subset_str=subset_str)
 
 
     def set_filter(self, filter_str: str):
@@ -331,10 +329,9 @@ class FinmanREPL:
 
                     tmp_fields_str = self.FIELDS_CAT_DIFF
                     trns = list(trns_dict.keys())
-                    Selection(self.finman_data, trns=trns).print_trns(
+                    Selection(self.finman_data, trns=trns).print_trns_table(
                             fields_str=tmp_fields_str,
-                            index_col=True,
-                            output_width=-1)
+                            index_col=True)
                 elif selection == "yes":
                     to_be_confirmed = False     # quit loop
                 else:

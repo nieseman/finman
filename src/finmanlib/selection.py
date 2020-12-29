@@ -20,8 +20,6 @@ from finmanlib.datafile import FinmanData, Trn, \
 
 
 
-OutputFormat = Enum('OutputFormat', 'csv table details')
-
 class Selection:
     """
     A selection of transactions.
@@ -117,54 +115,40 @@ class Selection:
         return field_names, column_headings, max_widths
 
 
-    def print_trns(self,
+    def print_trns_table(self,
             fields_str: str,
             subset_str=None,
             index_col=False,
             output_width=None,
-            output_format=OutputFormat.table,
-            csv_sep=",",
             fh=sys.stdout):
         """
-        Print the whole selection of transactions, or a subset thereof.
+        Print the whole selection of transactions, or a subset thereof, in table
+        format.
 
         fields_str      The fields to print (type: str)
         subset_str      The subset of transactions to print (type: Optional[str])
         index_col       Print index column? (type: bool)
-        output_width       Maximum width of formatted output (type: Optional[int])
-                        output_width < 0 uses terminal width as maximum width.
-        output_format   Format of output (type: OutputFormat)
-        csv_sep         Separator for CSV output (type: str)
+        output_width    Maximum width of formatted output (type: Optional[int])
+                        If None, the full terminal width is used.
         fh              File handle for output
         """
-        trns = self.get_subset(subset_str)
 
         # Preperations.
         if index_col:
             fields_str = f"{COL_IDX}{self.SEPARATOR_FIELDS}{fields_str}"
+        if output_width is None:
+            output_width = os.get_terminal_size().columns
 
+        # Evaluate formatting.
+        trns = self.get_subset(subset_str)
+        sum_value = sum(trn.value() for trn in trns)
+        sum_str = "%+.2f" % sum_value
         field_names, column_headings, max_widths = self._eval_fields_str(fields_str)
-
-        if output_format == OutputFormat.table:
-            if output_width is not None and output_width < 0:
-                output_width = os.get_terminal_size().columns
-
-            # TBD: refactor into TrnsSet?
-            sum_value = sum(trn.value() for trn in trns)
-            sum_str = "%+.2f" % sum_value
-
-            fmt = ColumnFormatter(self.trns, field_names, column_headings, max_widths, output_width)
+        fmt = ColumnFormatter(self.trns, field_names, column_headings, max_widths, output_width)
 
         # Print header.
-        if output_format == OutputFormat.csv:
-            header = csv_sep.join(column_headings) + "\n"
-        elif output_format == OutputFormat.table:
-            header = fmt.get_formatted_line(column_headings) + \
-                     fmt.get_separator_line()
-        elif output_format == OutputFormat.details:
-            header = ""
-        else:
-            assert False, f"Invalid output format: {output_format}"
+        header = fmt.get_formatted_line(column_headings) + \
+                 fmt.get_separator_line()
         fh.write(header)
 
         # Print data lines.
@@ -179,35 +163,79 @@ class Selection:
                     value = "*" if value is True else ""
                 values.append(value)
 
-            if output_format == OutputFormat.csv:
-                line = csv_sep.join(values) + "\n"
-            elif output_format == OutputFormat.table:
-                line = fmt.get_formatted_line(values)
-            elif output_format == OutputFormat.details:
-                line = self.get_details(trn)
+            line = fmt.get_formatted_line(values)
             fh.write(line)
 
-        # Print footer.
-        if output_format == OutputFormat.table:
-            for col_idx, col_name in enumerate(field_names):
-                if col_name == COL_VALUE:
-                    break
-            else:
-                col_idx = None
-
-            if col_idx is not None:
-                values = [""] * len(field_names)
-                values[0] = "Σ"
-                values[col_idx] = sum_str
-                footer = fmt.get_separator_line() + \
-                         fmt.get_formatted_line(values)
-            else:
-                footer = ""
-            footer += fmt.get_separator_line() + \
-                      fmt.get_formatted_line(column_headings)
+        # Determine if the values of the transactions are printed.
+        for col_idx, col_name in enumerate(field_names):
+            if col_name == COL_VALUE:
+                break
         else:
-            footer = ""
+            col_idx = None
+
+        # If yes, determine the sum line for the footer.
+        footer = ""
+        if col_idx is not None:
+            values = [""] * len(field_names)
+            values[0] = "Σ"
+            values[col_idx] = sum_str
+            footer = fmt.get_separator_line() + \
+                     fmt.get_formatted_line(values)
+
+        # Print footer.
+        footer += fmt.get_separator_line() + \
+                  fmt.get_formatted_line(column_headings)
         fh.write(footer)
+
+
+    def print_trns_details(self,
+            subset_str=None,
+            fh=sys.stdout):
+        """
+        Print the whole selection of transactions, or a subset thereof, with all
+        details.
+
+        fields_str      The fields to print (type: str)
+        subset_str      The subset of transactions to print (type: Optional[str])
+        fh              File handle for output
+        """
+        invalid_fields = set()
+        for trn in self.get_subset(subset_str):
+            s = f"\n# {trn._idx}\n"
+            s += "    Top-level fields:\n"
+            for field in ('_id', '_idx', '_is_modified', '_cat_alt', 'line_num_in_csv'):
+                s += f"        {field + ':':<28}{getattr(trn, field)}\n"
+            s += "    Columns:\n"
+            for key, value in trn.columns.items():
+                s += f"        {key + ':':<28}'{value}'\n"
+            s += "    Notes:\n"
+            for key, value in trn.notes.items():
+                s += f"        {key + ':':<28}'{value}'\n"
+
+            fh.write(s)
+
+
+    def print_trns_csv(self,
+            fields_str: str,
+            subset_str=None,
+            csv_sep=",",
+            fh=sys.stdout):
+        """
+        Print the whole selection of transactions, or a subset thereof, in CSV
+        format.
+
+        fields_str      The fields to print (type: str)
+        subset_str      The subset of transactions to print (type: Optional[str])
+        csv_sep         Separator for CSV output (type: str)
+        fh              File handle for output
+        """
+        field_names, column_headings, _ = self._eval_fields_str(fields_str)
+        fh.write(csv_sep.join(column_headings) + "\n")
+
+        invalid_fields = set()
+        for trn in self.get_subset(subset_str):
+            values = [trn.get_field(field_name, invalid_fields) for field_name in field_names]
+            fh.write(csv_sep.join(values) + "\n")
 
 
     def get_subset(self, subset_str: Optional[str] = None) -> List[Trn]:
@@ -225,23 +253,6 @@ class Selection:
                 else:
                     trns += self.trns[rng_min - 1:rng_max]
             return trns
-
-
-    @staticmethod
-    def get_details(trn: Trn) -> str:
-        """ TBD """
-        s = f"\n# {trn._idx}\n"
-        s += "    Top-level fields:\n"
-        for field in ('_id', '_idx', '_is_modified', '_cat_alt', 'line_num_in_csv'):
-            s += f"        {field + ':':<28}{getattr(trn, field)}\n"
-        s += "    Columns:\n"
-        for key, value in trn.columns.items():
-            s += f"        {key + ':':<28}'{value}'\n"
-        s += "    Notes:\n"
-        for key, value in trn.notes.items():
-            s += f"        {key + ':':<28}'{value}'\n"
-
-        return s
 
 
 
